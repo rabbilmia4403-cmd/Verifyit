@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Signal",
-    "slug": "expo-starter",
+    "name": "VerifyIt",
+    "slug": "verifyit",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -15,10 +15,10 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.signal.factcheck"
+      "bundleIdentifier": "com.verifyit.app"
     },
     "android": {
-      "package": "com.signal.factcheck"
+      "package": "com.verifyit.app"
     },
     "web": {
       "favicon": "./assets/images/icon.png"
