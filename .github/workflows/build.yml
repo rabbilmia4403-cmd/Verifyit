@@ -15,25 +15,27 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      # ২. Node.js সেটআপ করা
+      # ২. Node.js সেটআপ করা (ক্যাশ ছাড়া)
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 18
 
-      # ৩. pnpm সেটআপ করা
+      # ৩. pnpm সেটআপ করা (স্পেসিফিক ভার্সন)
       - name: Setup pnpm
         uses: pnpm/action-setup@v2
         with:
           version: 8
+          run_install: false
 
-      # ৪. pnpm ক্যাশ সেটআপ করা
+      # ৪. pnpm স্টোর পাথ নির্ধারণ করা
       - name: Get pnpm store directory
         id: pnpm-cache
         shell: bash
         run: |
-          echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
 
+      # ৫. pnpm ক্যাশ রিস্টোর করা
       - name: Setup pnpm cache
         uses: actions/cache@v3
         with:
@@ -42,17 +44,17 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
 
-      # ৫. Expo CLI সেটআপ করা
+      # ৬. প্রজেক্টের ডিপেন্ডেন্সি ইনস্টল করা
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # ৭. Expo CLI সেটআপ করা
       - name: Setup Expo
         uses: expo/expo-github-action@v8
         with:
           expo-version: latest
-          token: ${{ secrets.EXPO_TOKEN }} # আপনার এক্সপো টোকেন না থাকলে অপশনাল হিসেবে রাখতে পারেন
+          token: ${{ secrets.EXPO_TOKEN }}
 
-      # ৬. প্রজেক্টের ডিপেন্ডেন্সি ইনস্টল করা
-      - name: Install dependencies
-        run: pnpm install
-
-      # ৭. প্রোজেক্ট ভ্যালিডেশন বা টেস্ট (প্রয়োজনীয় হলে)
+      # ৮. প্রোজেক্ট ভ্যালিডেশন বা টেস্ট
       - name: Run Expo Doctor / Check
         run: npx expo-doctor
