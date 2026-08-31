@@ -20,19 +20,39 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 18
-          cache: 'npm'
 
-      # ৩. Expo CLI সেটআপ করা
+      # ৩. pnpm সেটআপ করা
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      # ৪. pnpm ক্যাশ সেটআপ করা
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      # ৫. Expo CLI সেটআপ করা
       - name: Setup Expo
         uses: expo/expo-github-action@v8
         with:
           expo-version: latest
           token: ${{ secrets.EXPO_TOKEN }} # আপনার এক্সপো টোকেন না থাকলে অপশনাল হিসেবে রাখতে পারেন
 
-      # ৪. প্রজেক্টের ডিপেন্ডেন্সি ইনস্টল করা
+      # ৬. প্রজেক্টের ডিপেন্ডেন্সি ইনস্টল করা
       - name: Install dependencies
-        run: npm install
+        run: pnpm install
 
-      # ৫. প্রোজেক্ট ভ্যালিডেশন বা টেস্ট (প্রয়োজনীয় হলে)
+      # ৭. প্রোজেক্ট ভ্যালিডেশন বা টেস্ট (প্রয়োজনীয় হলে)
       - name: Run Expo Doctor / Check
         run: npx expo-doctor
