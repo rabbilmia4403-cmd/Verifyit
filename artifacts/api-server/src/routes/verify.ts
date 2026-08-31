@@ -5,6 +5,8 @@ const router: IRouter = Router();
 
 const GEMINI_API_KEY = process.env["GEMINI_API_KEY"] ?? "";
 const SAFE_BROWSING_API_KEY = process.env["SAFE_BROWSING_API_KEY"] ?? "";
+const GEMINI_MODEL = "gemini-3.6-flash";
+const GEMINI_API_VERSION = "v1beta";
 const PLACEHOLDER_KEYS = new Set([
   "",
   "YOUR_GEMINI_API_KEY",
@@ -43,6 +45,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function getString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function getProviderErrorMessage(payload: string): string | undefined {
+  try {
+    const parsed: unknown = JSON.parse(payload);
+    if (!isRecord(parsed) || !isRecord(parsed["error"])) return undefined;
+    return getString(parsed["error"]["message"]);
+  } catch {
+    return undefined;
+  }
 }
 
 function getGeminiText(payload: unknown): string {
@@ -91,9 +103,11 @@ function parseModelJson(text: string): {
 
 async function verifyClaim(input: string) {
   const key = requireProviderKey(GEMINI_API_KEY, "GEMINI_API_KEY");
-  const endpoint =
-    `https://generativelanguage.googleapis.com/v1beta/models/` +
-    `gemini-2.5-flash:generateContent?key=${encodeURIComponent(key)}`;
+  const endpoint = new URL(
+    `https://generativelanguage.googleapis.com/${GEMINI_API_VERSION}/models/` +
+      `${GEMINI_MODEL}:generateContent`,
+  );
+  endpoint.searchParams.set("key", key);
   const response = await fetch(endpoint, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -126,7 +140,11 @@ async function verifyClaim(input: string) {
   });
 
   if (!response.ok) {
-    throw new ProviderRequestError(`Gemini API returned HTTP ${response.status}.`);
+    const providerMessage = getProviderErrorMessage(await response.text());
+    throw new ProviderRequestError(
+      `Gemini API returned HTTP ${response.status}.` +
+        (providerMessage ? ` ${providerMessage}` : ""),
+    );
   }
 
   const payload: unknown = await response.json();

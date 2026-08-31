@@ -1,0 +1,1 @@
+- [Gemini model availability](gemini-model-availability.md) — Google may return 404 for documented models when access changes; preserve provider diagnostics and use the replacement it names.
