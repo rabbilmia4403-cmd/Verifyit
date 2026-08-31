@@ -1,0 +1,24 @@
+kind = "mobile"
+previewPath = "/"
+title = "Expo Starter App"
+description = "A clean React Native Expo starter app with a polished home screen and a small local interaction to demonstrate the project is ready to extend."
+version = "1.0.0"
+id = "artifacts/expo-starter"
+router = "expo-domain"
+
+[[services]]
+name = "expo"
+ensurePreviewReachable = "/status"
+paths = [ "/" ]
+localPort = 21059
+
+[services.development]
+run = "pnpm --filter @workspace/expo-starter run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/expo-starter", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/expo-starter", "run", "serve" ]
+
+[services.env]
+PORT = "21059"
+BASE_PATH = "/"
