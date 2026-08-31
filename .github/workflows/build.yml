@@ -1,36 +1,38 @@
-name: Build Android AAB
+name: Build Expo App
 
 on:
   push:
-    branches: [ main ]
+    branches: [ "main" ] # আপনার জমানো ব্রাঞ্চের নাম এখানে দিন (যেমন: main বা master)
+  pull_request:
+    branches: [ "main" ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    
+
     steps:
-      - uses: actions/checkout@v4
-      
-      - name: Setup Java
-        uses: actions/setup-java@v4
+      # ১. রিপোজিটরি কোড চেকআউট করা
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # ২. Node.js সেটআপ করা
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          distribution: 'zulu'
-          java-version: '17'
+          node-version: 18
+          cache: 'npm'
 
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+      # ৩. Expo CLI সেটআপ করা
+      - name: Setup Expo
+        uses: expo/expo-github-action@v8
         with:
-          flutter-version: '3.24.0'
-          channel: 'stable'
+          expo-version: latest
+          token: ${{ secrets.EXPO_TOKEN }} # আপনার এক্সপো টোকেন না থাকলে অপশনাল হিসেবে রাখতে পারেন
 
-      - name: Get dependencies
-        run: flutter pub get
+      # ৪. প্রজেক্টের ডিপেন্ডেন্সি ইনস্টল করা
+      - name: Install dependencies
+        run: npm install
 
-      - name: Build AAB
-        run: flutter build appbundle --release
-
-      - name: Upload AAB
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-release-aab
-          path: build/app/outputs/bundle/release/app-release.aab
+      # ৫. প্রোজেক্ট ভ্যালিডেশন বা টেস্ট (প্রয়োজনীয় হলে)
+      - name: Run Expo Doctor / Check
+        run: npx expo-doctor
