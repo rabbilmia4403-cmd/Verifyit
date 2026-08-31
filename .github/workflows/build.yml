@@ -34,16 +34,7 @@ jobs:
         shell: bash
         run: |
           echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
-
-      # ৫. pnpm ক্যাশ রিস্টোর করা
-      - name: Setup pnpm cache
-        uses: actions/cache@v3
-        with:
-          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
-
+    
       # ৬. প্রজেক্টের ডিপেন্ডেন্সি ইনস্টল করা
             - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
