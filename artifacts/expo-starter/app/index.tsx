@@ -30,6 +30,7 @@ export default function HomeScreen() {
   const [input, setInput] = useState('');
   const [result, setResult] = useState<VerifyResult | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isChecking, setIsChecking] = useState(false);
   const verifyMutation = useVerifyInput();
 
   const inputType = useMemo(() => {
@@ -39,17 +40,18 @@ export default function HomeScreen() {
 
   const verify = async () => {
     const value = input.trim();
-    if (value.length < 3 || verifyMutation.isPending) return;
+    if (value.length < 3 || isChecking || verifyMutation.isPending) return;
 
     await Haptics.selectionAsync();
     setResult(null);
     setErrorMessage(null);
+    setIsChecking(true);
 
     try {
       const nextResult = await verifyMutation.mutateAsync({ data: { input: value } });
+      await showInterstitial();
       setResult(nextResult);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      showInterstitial();
     } catch (error) {
       const message =
         error instanceof Error
@@ -57,6 +59,8 @@ export default function HomeScreen() {
           : 'We could not complete this check. Try again.';
       setErrorMessage(message);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setIsChecking(false);
     }
   };
 
@@ -147,7 +151,7 @@ export default function HomeScreen() {
 
         <Pressable
           onPress={verify}
-          disabled={input.trim().length < 3 || verifyMutation.isPending}
+          disabled={input.trim().length < 3 || isChecking || verifyMutation.isPending}
           testID="verify-button"
           style={({ pressed }) => [
             styles.verifyButton,
@@ -158,7 +162,7 @@ export default function HomeScreen() {
             pressed && input.trim().length >= 3 && styles.buttonPressed,
           ]}
         >
-          {verifyMutation.isPending ? (
+          {isChecking || verifyMutation.isPending ? (
             <ActivityIndicator color={colors.primaryForeground} />
           ) : (
             <>

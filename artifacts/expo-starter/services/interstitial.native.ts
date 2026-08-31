@@ -11,11 +11,15 @@ type NativeInterstitialModule = {
       show: () => Promise<void>;
     };
   };
-  AdEventType: { LOADED: string };
+  AdEventType: {
+    CLOSED: string;
+    ERROR: string;
+    LOADED: string;
+  };
 };
 
-export function showInterstitial() {
-  if (isPlaceholder(ADMOB_INTERSTITIAL_UNIT_ID)) return;
+export function showInterstitial(): Promise<boolean> {
+  if (isPlaceholder(ADMOB_INTERSTITIAL_UNIT_ID)) return Promise.resolve(false);
 
   try {
     const ads = require('react-native-google-mobile-ads') as NativeInterstitialModule;
@@ -23,17 +27,52 @@ export function showInterstitial() {
       ADMOB_INTERSTITIAL_UNIT_ID,
       { requestNonPersonalizedAdsOnly: true },
     );
-    let hasShown = false;
-    const unsubscribe = interstitial.addAdEventListener(ads.AdEventType.LOADED, () => {
-      hasShown = true;
-      void interstitial.show();
-      unsubscribe();
+
+    return new Promise((resolve) => {
+      let settled = false;
+      let timeout: ReturnType<typeof setTimeout> | undefined;
+      let unsubscribeLoaded = () => {};
+      let unsubscribeError = () => {};
+      let unsubscribeClosed = () => {};
+
+      const finish = (shown: boolean) => {
+        if (settled) return;
+        settled = true;
+        if (timeout) clearTimeout(timeout);
+        unsubscribeLoaded();
+        unsubscribeError();
+        unsubscribeClosed();
+        resolve(shown);
+      };
+
+      unsubscribeLoaded = interstitial.addAdEventListener(
+        ads.AdEventType.LOADED,
+        () => {
+          try {
+            void interstitial.show().catch(() => finish(false));
+          } catch {
+            finish(false);
+          }
+        },
+      );
+      unsubscribeError = interstitial.addAdEventListener(
+        ads.AdEventType.ERROR,
+        () => finish(false),
+      );
+      unsubscribeClosed = interstitial.addAdEventListener(
+        ads.AdEventType.CLOSED,
+        () => finish(true),
+      );
+
+      timeout = setTimeout(() => finish(false), 12000);
+      try {
+        interstitial.load();
+      } catch {
+        finish(false);
+      }
     });
-    interstitial.load();
-    setTimeout(() => {
-      if (!hasShown) unsubscribe();
-    }, 12000);
   } catch {
     // Expo Go does not include the native AdMob module; the app remains usable.
+    return Promise.resolve(false);
   }
 }
