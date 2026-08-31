@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Expo Starter App",
+    "name": "Signal",
     "slug": "expo-starter",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -11,12 +11,15 @@
     "splash": {
       "image": "./assets/images/icon.png",
       "resizeMode": "contain",
-    "backgroundColor": "#F7F4EF"
+      "backgroundColor": "#F7F4EF"
     },
     "ios": {
-      "supportsTablet": false
+      "supportsTablet": false,
+      "bundleIdentifier": "com.signal.factcheck"
     },
-    "android": {},
+    "android": {
+      "package": "com.signal.factcheck"
+    },
     "web": {
       "favicon": "./assets/images/icon.png"
     },
@@ -28,7 +31,14 @@
         }
       ],
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-3940256099942544~3347511713",
+          "iosAppId": "ca-app-pub-3940256099942544~1458002511"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

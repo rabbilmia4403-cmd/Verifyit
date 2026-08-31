@@ -1,98 +1,63 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useVerifyInput, type VerifyResult } from '@workspace/api-client-react';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  useColorScheme,
+  TextInput,
   View,
+  useColorScheme,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AdBanner } from '@/components/AdBanner';
+import { VerificationResultCard } from '@/components/VerificationResultCard';
 import { useColors } from '@/hooks/useColors';
+import { showInterstitial } from '@/services/interstitial';
 
-type ChecklistItem = {
-  id: string;
-  label: string;
-  detail: string;
-  icon: keyof typeof Feather.glyphMap;
-};
-
-const checklist: ChecklistItem[] = [
-  {
-    id: 'scaffold',
-    label: 'Expo scaffold',
-    detail: 'Routing, fonts, and safe areas are ready',
-    icon: 'layers',
-  },
-  {
-    id: 'native',
-    label: 'Native-friendly UI',
-    detail: 'Built for touch, motion, and small screens',
-    icon: 'smartphone',
-  },
-  {
-    id: 'idea',
-    label: 'Your next idea',
-    detail: 'Swap this screen for your product direction',
-    icon: 'edit-3',
-  },
-];
-
-const STORAGE_KEY = '@expo-starter/checklist';
+function looksLikeUrl(value: string) {
+  return /^https?:\/\//i.test(value.trim());
+}
 
 export default function HomeScreen() {
   const colors = useColors();
   const colorScheme = useColorScheme();
   const insets = useSafeAreaInsets();
-  const [completed, setCompleted] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [showNudge, setShowNudge] = useState(false);
+  const [input, setInput] = useState('');
+  const [result, setResult] = useState<VerifyResult | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const verifyMutation = useVerifyInput();
 
-  useEffect(() => {
-    let isMounted = true;
+  const inputType = useMemo(() => {
+    if (!input.trim()) return 'TEXT OR LINK';
+    return looksLikeUrl(input) ? 'LINK DETECTED' : 'CLAIM DETECTED';
+  }, [input]);
 
-    AsyncStorage.getItem(STORAGE_KEY)
-      .then((value) => {
-        if (isMounted && value) {
-          setCompleted(JSON.parse(value) as string[]);
-        }
-      })
-      .catch(() => {
-        // The starter remains usable when local storage is unavailable.
-      })
-      .finally(() => {
-        if (isMounted) setIsLoading(false);
-      });
+  const verify = async () => {
+    const value = input.trim();
+    if (value.length < 3 || verifyMutation.isPending) return;
 
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  const progress = useMemo(
-    () => Math.round((completed.length / checklist.length) * 100),
-    [completed.length],
-  );
-
-  const toggleItem = async (id: string) => {
     await Haptics.selectionAsync();
-    const next = completed.includes(id)
-      ? completed.filter((item) => item !== id)
-      : [...completed, id];
+    setResult(null);
+    setErrorMessage(null);
 
-    setCompleted(next);
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-  };
-
-  const startBuilding = async () => {
-    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setShowNudge(true);
+    try {
+      const nextResult = await verifyMutation.mutateAsync({ data: { input: value } });
+      setResult(nextResult);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      showInterstitial();
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message.replace(/^HTTP \d+ [^:]+:\s*/i, '')
+          : 'We could not complete this check. Try again.';
+      setErrorMessage(message);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    }
   };
 
   return (
@@ -104,189 +69,152 @@ export default function HomeScreen() {
     >
       <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
       <ScrollView
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.content,
-          {
-            paddingBottom: insets.bottom + 28,
-            backgroundColor: colors.background,
-          },
+          { paddingBottom: insets.bottom + 24 },
         ]}
-        showsVerticalScrollIndicator={false}
       >
-        <View style={styles.topBar}>
-          <View style={[styles.brandMark, { borderColor: colors.brandOutline }]}>
-            <View style={[styles.brandMarkInner, { backgroundColor: colors.primary }]} />
+        <View style={styles.header}>
+          <View style={styles.brand}>
+            <View style={[styles.brandIcon, { backgroundColor: colors.primary }]}>
+              <Feather name="shield" size={18} color={colors.primaryForeground} />
+            </View>
+            <View>
+              <Text style={[styles.brandName, { color: colors.foreground }]}>
+                SIGNAL
+              </Text>
+              <Text style={[styles.brandCaption, { color: colors.mutedForeground }]}>
+                Truth, with context
+              </Text>
+            </View>
           </View>
-          <View style={styles.topBarText}>
-            <Text style={[styles.eyebrow, { color: colors.mutedForeground }]}>
-              EXPO STARTER
+          <View style={[styles.headerBadge, { backgroundColor: colors.secondary }]}>
+            <View style={[styles.liveDot, { backgroundColor: colors.primary }]} />
+            <Text style={[styles.headerBadgeText, { color: colors.secondaryForeground }]}>
+              READY
             </Text>
-            <Text style={[styles.date, { color: colors.foreground }]}>
-              Monday, ready to ship
-            </Text>
-          </View>
-          <View style={[styles.statusDot, { backgroundColor: colors.secondary }]}>
-            <View style={[styles.statusDotInner, { backgroundColor: colors.primary }]} />
           </View>
         </View>
 
         <View style={styles.hero}>
-          <Text style={[styles.kicker, { color: colors.primary }]}>A fresh canvas</Text>
+          <Text style={[styles.eyebrow, { color: colors.primary }]}>CHECK BEFORE YOU SHARE</Text>
           <Text style={[styles.title, { color: colors.foreground }]}>
-            Your next build{'\n'}
-            <Text style={{ color: colors.primary }}>starts here.</Text>
+            Is it real, or{'\n'}
+            <Text style={{ color: colors.primary }}>just noise?</Text>
           </Text>
           <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
-            A thoughtfully wired mobile foundation for turning a good idea into
-            something people can tap, feel, and keep.
-          </Text>
-        </View>
-
-        <LinearGradient
-          colors={[colors.progressDark, colors.progressDarkAlt]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.progressCard}
-        >
-          <View style={styles.progressCardHeader}>
-            <View>
-              <Text style={[styles.progressEyebrow, { color: colors.onDarkMuted }]}>
-                BUILD MOMENTUM
-              </Text>
-              <Text style={[styles.progressTitle, { color: colors.onDark }]}>
-                Everything is in place.
-              </Text>
-            </View>
-            {isLoading ? (
-              <ActivityIndicator color="#FFFDFC" />
-            ) : (
-              <Text style={[styles.progressPercent, { color: colors.onDark }]}>
-                {progress}%
-              </Text>
-            )}
-          </View>
-          <View style={[styles.progressTrack, { backgroundColor: colors.onDarkTrack }]}>
-            <View
-              style={[
-                styles.progressFill,
-                {
-                  width: `${Math.max(progress, 8)}%`,
-                  backgroundColor: colors.primary,
-                },
-              ]}
-            />
-          </View>
-          <Text style={[styles.progressHint, { color: colors.onDarkMuted }]}>
-            Tap through the checklist to make this starter yours.
-          </Text>
-        </LinearGradient>
-
-        <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-            Your launch checklist
-          </Text>
-          <Text style={[styles.sectionCount, { color: colors.mutedForeground }]}>
-            {completed.length}/{checklist.length}
+            Paste a claim, headline, message, or link. We’ll check the signal
+            and give you the context to decide what comes next.
           </Text>
         </View>
 
         <View
           style={[
-            styles.checklistCard,
+            styles.inputCard,
             { backgroundColor: colors.card, borderColor: colors.border },
           ]}
         >
-          {checklist.map((item, index) => {
-            const isComplete = completed.includes(item.id);
-
-            return (
-              <Pressable
-                key={item.id}
-                onPress={() => toggleItem(item.id)}
-                testID={`checklist-${item.id}`}
-                style={({ pressed }) => [
-                  styles.checklistRow,
-                  index !== checklist.length - 1 && [
-                    styles.rowBorder,
-                    { borderBottomColor: colors.border },
-                  ],
-                  pressed && styles.pressed,
-                ]}
-              >
-                <View
-                  style={[
-                    styles.itemIcon,
-                    {
-                      backgroundColor: isComplete ? colors.secondary : colors.accent,
-                    },
-                  ]}
-                >
-                  <Feather
-                    name={isComplete ? 'check' : item.icon}
-                    size={17}
-                    color={isComplete ? colors.secondaryForeground : colors.accentForeground}
-                  />
-                </View>
-                <View style={styles.itemCopy}>
-                  <Text
-                    style={[
-                      styles.itemLabel,
-                      { color: colors.cardForeground },
-                      isComplete && styles.itemLabelComplete,
-                    ]}
-                  >
-                    {item.label}
-                  </Text>
-                  <Text style={[styles.itemDetail, { color: colors.mutedForeground }]}>
-                    {item.detail}
-                  </Text>
-                </View>
-                <Feather
-                  name={isComplete ? 'check-circle' : 'circle'}
-                  size={21}
-                  color={isComplete ? colors.primary : colors.border}
-                />
+          <View style={styles.inputHeader}>
+            <Text style={[styles.inputLabel, { color: colors.cardForeground }]}>
+              WHAT DO YOU WANT TO CHECK?
+            </Text>
+            <Text style={[styles.inputType, { color: colors.primary }]}>{inputType}</Text>
+          </View>
+          <TextInput
+            value={input}
+            onChangeText={setInput}
+            placeholder="Paste a link or type a claim..."
+            placeholderTextColor={colors.mutedForeground}
+            multiline
+            maxLength={10000}
+            textAlignVertical="top"
+            testID="verification-input"
+            style={[styles.textInput, { color: colors.cardForeground }]}
+          />
+          <View style={styles.inputFooter}>
+            <Text style={[styles.characterCount, { color: colors.mutedForeground }]}>
+              {input.length}/10,000
+            </Text>
+            {input.length > 0 && (
+              <Pressable onPress={() => setInput('')} testID="clear-input" hitSlop={10}>
+                <Feather name="x-circle" size={19} color={colors.mutedForeground} />
               </Pressable>
-            );
-          })}
+            )}
+          </View>
         </View>
 
         <Pressable
-          onPress={startBuilding}
-          testID="start-building"
+          onPress={verify}
+          disabled={input.trim().length < 3 || verifyMutation.isPending}
+          testID="verify-button"
           style={({ pressed }) => [
-            styles.primaryButton,
-            { backgroundColor: colors.primary },
-            pressed && styles.buttonPressed,
+            styles.verifyButton,
+            {
+              backgroundColor:
+                input.trim().length < 3 ? colors.muted : colors.primary,
+            },
+            pressed && input.trim().length >= 3 && styles.buttonPressed,
           ]}
         >
-          <Text style={[styles.primaryButtonText, { color: colors.primaryForeground }]}>
-            Start building
-          </Text>
-          <Feather name="arrow-up-right" size={19} color={colors.primaryForeground} />
+          {verifyMutation.isPending ? (
+            <ActivityIndicator color={colors.primaryForeground} />
+          ) : (
+            <>
+              <Feather
+                name="search"
+                size={19}
+                color={
+                  input.trim().length < 3
+                    ? colors.mutedForeground
+                    : colors.primaryForeground
+                }
+              />
+              <Text
+                style={[
+                  styles.verifyButtonText,
+                  {
+                    color:
+                      input.trim().length < 3
+                        ? colors.mutedForeground
+                        : colors.primaryForeground,
+                  },
+                ]}
+              >
+                Verify now
+              </Text>
+            </>
+          )}
         </Pressable>
 
-        {showNudge && (
-          <View style={[styles.nudge, { backgroundColor: colors.secondary }]}>
-            <Feather name="zap" size={16} color={colors.secondaryForeground} />
-            <Text style={[styles.nudgeText, { color: colors.secondaryForeground }]}>
-              Nice. Replace this screen with your first product idea.
+        <View style={styles.providerRow}>
+          <Feather name="lock" size={12} color={colors.mutedForeground} />
+          <Text style={[styles.providerText, { color: colors.mutedForeground }]}>
+            Your check is sent securely to the verification service.
+          </Text>
+        </View>
+
+        {errorMessage && (
+          <View style={[styles.errorCard, { backgroundColor: colors.accent }]}>
+            <Feather name="alert-circle" size={18} color={colors.accentForeground} />
+            <Text style={[styles.errorText, { color: colors.accentForeground }]}>
+              {errorMessage}
             </Text>
-            <Pressable
-              onPress={() => setShowNudge(false)}
-              testID="dismiss-nudge"
-              hitSlop={12}
-            >
-              <Feather name="x" size={17} color={colors.secondaryForeground} />
-            </Pressable>
           </View>
         )}
 
+        {result && <VerificationResultCard result={result} />}
+
+        <View style={styles.adSection}>
+          <AdBanner />
+        </View>
+
         <View style={styles.footer}>
+          <Feather name="info" size={13} color={colors.mutedForeground} />
           <Text style={[styles.footerText, { color: colors.mutedForeground }]}>
-            Made for ideas that deserve a first tap.
+            Results are guidance, not a substitute for primary sources.
           </Text>
-          <Feather name="heart" size={14} color={colors.primary} />
         </View>
       </ScrollView>
     </View>
@@ -298,215 +226,169 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    paddingHorizontal: 22,
-    paddingTop: 20,
+    paddingHorizontal: 21,
+    paddingTop: 19,
   },
-  topBar: {
+  header: {
     alignItems: 'center',
     flexDirection: 'row',
-    marginBottom: 42,
+    justifyContent: 'space-between',
   },
-  brandMark: {
+  brand: {
     alignItems: 'center',
-    borderRadius: 13,
-    borderWidth: 1.5,
-    height: 38,
+    flexDirection: 'row',
+  },
+  brandIcon: {
+    alignItems: 'center',
+    borderRadius: 12,
+    height: 37,
     justifyContent: 'center',
-    transform: [{ rotate: '-8deg' }],
-    width: 38,
+    marginRight: 10,
+    width: 37,
   },
-  brandMarkInner: {
-    borderRadius: 6,
-    height: 18,
-    transform: [{ rotate: '18deg' }],
-    width: 18,
+  brandName: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 14,
+    letterSpacing: 2.2,
   },
-  topBarText: {
-    flex: 1,
-    marginLeft: 12,
+  brandCaption: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 10,
+    marginTop: 2,
+  },
+  headerBadge: {
+    alignItems: 'center',
+    borderRadius: 15,
+    flexDirection: 'row',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  liveDot: {
+    borderRadius: 4,
+    height: 7,
+    marginRight: 6,
+    width: 7,
+  },
+  headerBadgeText: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 9,
+    letterSpacing: 0.9,
+  },
+  hero: {
+    marginBottom: 25,
+    marginTop: 43,
   },
   eyebrow: {
     fontFamily: 'Inter_700Bold',
     fontSize: 10,
-    letterSpacing: 1.7,
-  },
-  date: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 12,
-    marginTop: 3,
-  },
-  statusDot: {
-    alignItems: 'center',
-    borderRadius: 16,
-    height: 32,
-    justifyContent: 'center',
-    width: 32,
-  },
-  statusDotInner: {
-    borderRadius: 5,
-    height: 10,
-    width: 10,
-  },
-  hero: {
-    marginBottom: 28,
-  },
-  kicker: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 13,
-    letterSpacing: 0.4,
-    marginBottom: 13,
+    letterSpacing: 1.55,
   },
   title: {
     fontFamily: 'Inter_700Bold',
-    fontSize: 39,
+    fontSize: 38,
     letterSpacing: -1.5,
-    lineHeight: 44,
+    lineHeight: 43,
+    marginTop: 12,
   },
   subtitle: {
     fontFamily: 'Inter_400Regular',
-    fontSize: 15,
-    lineHeight: 23,
-    marginTop: 18,
+    fontSize: 14,
+    lineHeight: 21,
+    marginTop: 16,
     maxWidth: 350,
   },
-  progressCard: {
-    borderRadius: 22,
-    marginBottom: 32,
-    padding: 21,
-  },
-  progressCardHeader: {
-    alignItems: 'flex-start',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  progressEyebrow: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 10,
-    letterSpacing: 1.6,
-  },
-  progressTitle: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 18,
-    marginTop: 7,
-  },
-  progressPercent: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 24,
-  },
-  progressTrack: {
-    borderRadius: 5,
-    height: 7,
-    marginTop: 26,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    borderRadius: 5,
-    height: '100%',
-  },
-  progressHint: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 12,
-    lineHeight: 18,
-    marginTop: 12,
-  },
-  sectionHeader: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 18,
-  },
-  sectionCount: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 13,
-  },
-  checklistCard: {
+  inputCard: {
     borderRadius: 18,
     borderWidth: 1,
-    marginBottom: 19,
-    overflow: 'hidden',
+    padding: 16,
   },
-  checklistRow: {
+  inputHeader: {
     alignItems: 'center',
     flexDirection: 'row',
-    minHeight: 77,
-    paddingHorizontal: 15,
-    paddingVertical: 12,
+    justifyContent: 'space-between',
   },
-  rowBorder: {
-    borderBottomWidth: 1,
+  inputLabel: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 10,
+    letterSpacing: 0.8,
   },
-  pressed: {
-    opacity: 0.72,
+  inputType: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 9,
+    letterSpacing: 0.7,
   },
-  itemIcon: {
-    alignItems: 'center',
-    borderRadius: 11,
-    height: 38,
-    justifyContent: 'center',
-    marginRight: 12,
-    width: 38,
-  },
-  itemCopy: {
-    flex: 1,
-    paddingRight: 10,
-  },
-  itemLabel: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 14,
-  },
-  itemLabelComplete: {
-    textDecorationLine: 'line-through',
-  },
-  itemDetail: {
+  textInput: {
     fontFamily: 'Inter_400Regular',
-    fontSize: 11,
-    lineHeight: 16,
-    marginTop: 4,
+    fontSize: 15,
+    lineHeight: 22,
+    minHeight: 112,
+    paddingHorizontal: 0,
+    paddingTop: 18,
   },
-  primaryButton: {
+  inputFooter: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+  characterCount: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 10,
+  },
+  verifyButton: {
     alignItems: 'center',
     borderRadius: 15,
     flexDirection: 'row',
     justifyContent: 'center',
+    marginTop: 14,
     minHeight: 56,
   },
   buttonPressed: {
-    opacity: 0.84,
+    opacity: 0.85,
     transform: [{ scale: 0.985 }],
   },
-  primaryButtonText: {
+  verifyButtonText: {
     fontFamily: 'Inter_700Bold',
     fontSize: 15,
-    marginRight: 9,
+    marginLeft: 9,
   },
-  nudge: {
+  providerRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: 13,
+  },
+  providerText: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 10,
+    marginLeft: 6,
+  },
+  errorCard: {
     alignItems: 'center',
     borderRadius: 14,
     flexDirection: 'row',
-    marginTop: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 13,
+    marginTop: 17,
+    padding: 13,
   },
-  nudgeText: {
+  errorText: {
     flex: 1,
     fontFamily: 'Inter_500Medium',
     fontSize: 12,
-    lineHeight: 17,
-    marginHorizontal: 9,
+    lineHeight: 18,
+    marginLeft: 9,
+  },
+  adSection: {
+    marginTop: 26,
   },
   footer: {
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 28,
+    marginTop: 18,
   },
   footerText: {
     fontFamily: 'Inter_400Regular',
-    fontSize: 11,
-    marginRight: 6,
+    fontSize: 10,
+    marginLeft: 6,
   },
 });

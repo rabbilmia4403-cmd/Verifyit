@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: verification
+    description: Fact-checking and link safety operations
 paths:
   /healthz:
     get:
@@ -24,6 +26,31 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /verify:
+    post:
+      operationId: verifyInput
+      tags: [verification]
+      summary: Verify text claims or link safety
+      description: Analyzes a text claim with Gemini or checks a URL with Google Safe Browsing.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyInput"
+      responses:
+        "200":
+          description: Verification result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerifyResult"
+        "400":
+          description: Invalid input
+        "502":
+          description: Upstream verification provider failed
+        "503":
+          description: Provider is not configured
 components:
   schemas:
     HealthStatus:
@@ -33,4 +60,42 @@ components:
           type: string
       required:
         - status
+    VerifyInput:
+      type: object
+      properties:
+        input:
+          type: string
+          minLength: 3
+          maxLength: 10000
+      required:
+        - input
+    VerifyResult:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum: [claim, link]
+        status:
+          type: string
+          enum: [real, fake, suspicious, safe, unsafe]
+        title:
+          type: string
+        explanation:
+          type: string
+        checkedValue:
+          type: string
+        matchedThreats:
+          type: array
+          items:
+            type: string
+        checkedAt:
+          type: string
+          format: date-time
+      required:
+        - kind
+        - status
+        - title
+        - explanation
+        - checkedValue
+        - checkedAt
 
